@@ -1,0 +1,314 @@
+#!/bin/sh
+
+# A custom tomcat instance Installation
+# path of this script /users/mwtools/tc
+
+# Usage:
+
+# Edit APP_NAME="...." with the real app name (i.e. crd, fxp, etc.)
+
+# Edit APP_INSTANCE="..." with the desired release version (i.e. 1.0, v1.1, etc.)
+
+# Then create the new instance as below -
+
+# ./cg-tcruntime-instance.sh fxp fxpD01 1.0 81    First Dev 8100 instance
+
+# ./cg-tcruntime-instance.sh pcs fxpD02 1.0 82   Second Dev 8200 instance
+
+#
+
+# ./cg-tcruntime-instance.sh fxp fxpD01 1.1 81  Updated App release 1.1 on the 1st instance
+
+#
+
+# Date                   Version                Description
+
+# ==========================================
+
+# 07/01/10          1.0                          Created by BTT
+
+# 07/23/10          1.1                          Added tcserver softlink and check for APP_HOME
+
+#                               Replaced tcserver202 and 8443 for https.port
+
+# 07/28/10          1.2                          Remove cgapp directory
+
+# 07/30/10          1.3                          Updated for create new instance and setenv.sh of old instance
+
+# 10/06/10                                          Remove the xmlValidation
+
+# 04/29/11          2.0                          Added jdk command line input with the defaulted jdk1.6.0_24
+
+# 06/10/11                                          Updated the defaulted jdk1.6.0_24 to jdk1.6.0_32
+
+# 04/07/14                      Added JAVA_HOME export; Must edit tcruntime-ctl.sh:INSTALL_BASE variable
+
+# 05/29/14          2.6                          Modify for tcserver 2.9.6
+
+# 09/01/18			3.0				PRA - 	Replace https port 8443 with the new port 
+
+ 
+
+if [ $# -lt 1 ]; then
+
+   echo "Usage: $0 app-name app-instance version port [jdk version]"
+
+   echo "Examples -"
+
+   echo "  ./cg-tcruntime-instance.sh fxp fxpD01 1.0 81 jdk1.6.0_32"
+
+   echo "  ./cg-tcruntime-instance.sh fxp fxpD01 1.0 81 -> defaulted to jdk1.6.0_32"
+
+   exit 22
+
+fi
+
+ 
+
+if [ `whoami` != "webapp" ]; then
+
+   echo "Must be webapp to run this script ..."
+
+   exit 1
+
+fi
+
+ 
+
+APP_NAME=$1
+
+TC_HOME="/users/mwe/tcserver"
+
+TCVER="7.0.72.A.RELEASE"
+
+JAVA_HOME="/users/java/jdk1.7.0_161"
+
+INSTANCE_NAME=$2
+
+APP_INSTANCE="$3"
+
+APP_HOME="/users/domains/tomcat/$APP_NAME/$INSTANCE_NAME"
+
+#JAVA_HOME="/users/domains/tomcat/$APP_NAME/$INSTANCE_NAME/jdk"
+
+if [ -z "$5" ]; then
+
+   echo "JDK is defaulted to jdk1.7.0_161 now ..."
+
+   JDK_VERSION="jdk1.7.0_161"
+
+else 
+
+   JDK_VERSION=$5
+
+fi
+
+HTTP_PORT=$4"02"
+
+HTTPS_PORT=$4"03"
+
+JMX_PORT=$4"04"
+
+AJP_PORT=$4"05"
+
+ 
+
+echo
+
+echo "Here are your installation info -"
+
+echo "================================="
+
+echo "TC_HOME="$TC_HOME
+
+echo "TCVER="$TCVER
+
+echo "JAVA_HOME="$JAVA_HOME
+
+echo "JDK_VERSION="$JDK_VERSION
+
+echo "INSTANCE_NAME="$INSTANCE_NAME
+
+echo "APP_INSTANCE="$APP_INSTANCE
+
+echo "APP_HOME="$APP_HOME
+
+echo "HTTP_PORT="$HTTP_PORT
+
+echo "HTTPS_PORT="$HTTPS_PORT
+
+echo "JMX_PORT="$JMX_PORT
+
+#echo "AJP_PORT="$AJP_PORT
+
+echo
+
+if [[ -d /users/mwe/$JDK_VERSION ]] ; then
+
+   echo $JDK_VERSION" is found ..."
+
+else
+
+   echo $JDK_VERSION" is not found, defaulted to jdk1.7.0_161 ..."
+
+   JDK_VERSION="jdk1.7.0_161"
+
+   echo "JDK_VERSION="$JDK_VERSION
+
+   echo
+
+fi
+
+echo "Press enter if it is OK or Ctrl+C to exit ..."
+
+read answer
+
+ 
+
+if [[ -d /users/domains/tomcat/$APP_NAME ]] ; then
+
+   echo $APP_NAME" directory is already exist ..."
+
+else
+
+   mkdir /users/domains/tomcat/$APP_NAME
+
+fi
+
+ 
+
+if [[ -d $APP_HOME ]] ; then
+
+   echo $APP_HOME" directory is already exist ..."
+
+else
+
+   mkdir $APP_HOME
+
+fi
+
+ 
+
+# Set up the jdk softlink
+
+echo "Set-up the jdk softlink ..."
+
+cd /users/domains/tomcat/$APP_NAME/$INSTANCE_NAME
+
+ln -s /users/mwe/jdk $APP_HOME/jdk
+
+export JAVA_HOME="$APP_HOME/jdk"
+
+ 
+
+echo "Creating instance ..."
+
+echo "JAVA_HOME="$JAVA_HOME
+
+ 
+
+cd $TC_HOME
+
+#./tcruntime-instance.sh create -i $APP_HOME -v $TCVER --java-home $JAVA_HOME -p bio.http.port=$HTTP_PORT -p bio.https.port=$HTTPS_PORT -p base.jmx.port=$JMX_PORT -t bio -t bio-ssl $APP_INSTANCE
+
+./tcruntime-instance.sh create -i $APP_HOME -v $TCVER --java-home $JAVA_HOME -p bio.http.port=$HTTP_PORT -p bio.https.port=$HTTPS_PORT -p base.jmx.port=$JMX_PORT $APP_INSTANCE
+
+ 
+
+echo
+
+echo "Start CG customized process ..."
+
+echo "Set-up CATALINA_HOME and CATALINA_BASE soft links ..."
+
+cp $APP_HOME/$APP_INSTANCE/bin/setenv.sh $APP_HOME/$APP_INSTANCE/bin/setenv.sh.org
+
+cp /users/mwtools/tc/cg-setenv.sh $APP_HOME/$APP_INSTANCE/bin/setenv.sh
+
+ 
+
+echo "CATALINA_HOME=$TC_HOME/tomcat" >> $APP_HOME/$APP_INSTANCE/bin/setenv.sh
+
+echo "CATALINA_BASE=$APP_HOME/current" >> $APP_HOME/$APP_INSTANCE/bin/setenv.sh
+
+ 
+
+cd $APP_HOME
+
+ 
+
+# if this another instance then update the setenv of the old instance
+
+if [[ -d $APP_HOME/current ]] ; then
+
+   OLDDIR=`find . -type l | xargs ls -l | awk '{print $NF}'`
+
+   cd current/bin
+
+   echo "Reset CATALINA_BASE of the current instance -> "$APP_HOME"/"$OLDDIR
+
+   cat setenv.sh | sed -e "s/current/${OLDDIR}/" > setenv.sh.cg
+
+   mv setenv.sh.cg setenv.sh
+
+   chmod a+x setenv.sh
+
+   cd ../..
+
+   rm current
+
+fi
+
+ln -s $APP_INSTANCE current
+
+chmod -R 755 $APP_INSTANCE
+
+# Replace tcserver296 with the tcserver softlink
+
+echo "Set-up the tcserver softlink ..."
+
+cd $APP_HOME/current/bin
+
+cat tcruntime-ctl.sh | sed -e "s/tcserver321/tcserver/" > tcruntime-ctl.sh.cg
+
+mv tcruntime-ctl.sh.cg tcruntime-ctl.sh
+
+chmod a+x tcruntime-ctl.sh
+
+ 
+
+# Set JAVA_HOME for the new setenv.sh
+
+cat setenv.sh | sed -e "s/jh_app/$APP_NAME/" > setenv.sh.cg
+
+cat setenv.sh.cg | sed -e "s/jh_instance/$INSTANCE_NAME/" > setenv.sh
+
+rm setenv.sh.cg
+
+chmod a+x setenv.sh
+
+ 
+
+# Replace https port 8443 with the new port
+
+#echo "Set-up the https port ..."
+
+cd $APP_HOME/current/conf
+
+#cat catalina.properties | sed -e "s/8443/${HTTPS_PORT}/" > catalina.properties.cg
+
+#mv catalina.properties.cg catalina.properties
+
+ 
+
+# Turn off the unpack or exploded WAR file.
+
+echo "Turn-off the unpack or exploded WAR file ..."
+
+cat server.xml | sed -e 's/unpackWARs="true"/unpackWARs="false"/' > server.xml.cg
+
+# cat server.xml.cg | sed -e 's/xmlValidation="false"/xmlValidation="true"/' > server.xml.cg1
+
+# rm server.xml.cg
+
+mv server.xml.cg server.xml
